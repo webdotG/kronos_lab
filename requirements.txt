@@ -1,0 +1,10 @@
+numpy
+pandas
+requests
+huggingface_hub
+einops
+tqdm
+pyarrow
+scipy
+matplotlib
+safetensors
