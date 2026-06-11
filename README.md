@@ -1,4 +1,3 @@
-
 ## нужно
 
 - docker с поддержкой gpu (nvidia-container-toolkit)
@@ -85,4 +84,4 @@ docker run --rm -v "$PWD/results:/app/kronos_lab/data" kronos-bt merge
 
 заархивь и пришли: tar czf results.tar.gz results/
 
-спасибо огромное, с меня причитается
+

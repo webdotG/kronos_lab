@@ -221,20 +221,3 @@ if __name__ == "__main__":
     assert out["indep_n"] < out["overall_calib"]["n"], "независимых должно быть меньше, чем всех"
     assert len(out["by_coin"]) == 3, "должны быть все три монеты"
     print("\njournal kronos_lab: независимый срез и разбивка по монетам работают")
-
-
-# --- контекстные колонки для backtest (живой журнал их не использует, чтоб не ломать формат) ---
-CONTEXT_COLUMNS = ["ctx_realized_vol", "ctx_trend", "ctx_zscore", "ctx_range_pct"]
-BACKTEST_COLUMNS = COLUMNS + CONTEXT_COLUMNS
-
-
-def append_row_cols(row: dict, path: str, columns: list) -> None:
-    """Универсальный writer под заданный набор колонок (для backtest с контекст-фичами)."""
-    import csv as _csv
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    new_file = not os.path.exists(path)
-    with open(path, "a", newline="") as f:
-        w = _csv.DictWriter(f, fieldnames=columns)
-        if new_file:
-            w.writeheader()
-        w.writerow({k: row.get(k, "") for k in columns})
