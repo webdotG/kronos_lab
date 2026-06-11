@@ -32,7 +32,7 @@ import pandas as pd
 import torch
 
 import config
-from foundation.generation import generate_ensemble
+from foundation.generation import generate_ensemble, auto_chunk
 from foundation.ensemble import save_ensemble, validate
 from foundation.analytics import context_features
 from foundation.journal import signal_from_ensemble, settle_pnl, append_row_cols, BACKTEST_COLUMNS
@@ -64,9 +64,11 @@ def main():
     ap.add_argument("--n_paths", type=int, default=500)
     ap.add_argument("--step", type=int, default=24)
     ap.add_argument("--n_points", type=int, default=1200)
-    ap.add_argument("--chunk", type=int, default=128)
+    ap.add_argument("--chunk", type=int, default=0)  # 0 = авто по свободной памяти
     ap.add_argument("--n_ctx", type=int, default=config.N_CONTEXT)
     ap.add_argument("--horizon", type=int, default=config.HORIZON_HOURS)
+    ap.add_argument("--slice_start", type=int, default=None)  # диапазон точек для этого воркера
+    ap.add_argument("--slice_end", type=int, default=None)
     ap.add_argument("--out", default=os.path.join(config.DATA_DIR, "backtest_journal.csv"))
     ap.add_argument("--ens_dir", default=os.path.join(config.DATA_DIR, "backtest_ensembles"))
     args = ap.parse_args()
@@ -78,6 +80,9 @@ def main():
     last_T = n - args.horizon - 1
     all_T = list(range(first_T, last_T, args.step))
     points = all_T[-args.n_points:]
+    if args.slice_start is not None or args.slice_end is not None:
+        points = points[args.slice_start:args.slice_end]
+        log(f"воркер считает срез точек [{args.slice_start}:{args.slice_end}]")
     log(f"часов истории: {n}, валидных точек (шаг {args.step}ч): {len(all_T)}, берём {len(points)}")
     log(f"период: {h.index[points[0]]} .. {h.index[points[-1]]}")
 
@@ -104,6 +109,19 @@ def main():
     predictor = KronosPredictor(model, tokenizer, device=device, max_context=config.MAX_CONTEXT)
 
     cur_chunk = args.chunk
+    if cur_chunk <= 0 and device != "cpu":
+        # замер на первой валидной точке
+        _ctx = h.iloc[points[0] - args.n_ctx:points[0]]
+        _xdf = _ctx[["open","high","low","close","volume","amount"]].reset_index(drop=True)
+        _xts = _ctx.index.to_series().reset_index(drop=True)
+        _yts = pd.date_range(start=_ctx.index[-1] + pd.Timedelta(hours=1),
+                             periods=args.horizon, freq="1h").to_series().reset_index(drop=True)
+        cur_chunk = auto_chunk(predictor, _xdf, _xts, _yts, args.horizon,
+                               reserve_gb=getattr(config, "GPU_RESERVE_GB", 1.5))
+    elif cur_chunk <= 0:
+        cur_chunk = 16
+    log(f"рабочий chunk: {cur_chunk}")
+
     t_start = time.time()
     computed = 0
 

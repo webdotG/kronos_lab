@@ -217,3 +217,40 @@ def generate_ensemble(
             "generated_at_utc": _dt.datetime.utcnow().isoformat(),
         },
     )
+
+
+@torch.no_grad()
+def auto_chunk(predictor, x_df, x_timestamp, y_timestamp, pred_len,
+               reserve_gb=1.5, max_chunk=1024, probe=4):
+    """
+    Подбирает максимальный chunk под РЕАЛЬНО свободную память карты.
+    Не таблица 'гиг->chunk', а замер: гоним пробный мелкий батч, смотрим, сколько
+    памяти он съел на путь, делим свободную (минус запас) на это.
+
+    reserve_gb - сколько ГБ оставить свободными (запас на фрагментацию)
+    Возвращает int chunk. На CPU возвращает разумный дефолт.
+    """
+    if predictor.device == "cpu" or not torch.cuda.is_available():
+        return 16
+
+    dev = 0 if predictor.device in ("cuda", "cuda:0") else int(str(predictor.device).split(":")[-1])
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats(dev)
+    free_before, total = torch.cuda.mem_get_info(dev)
+
+    # пробный прогон probe путей - замерить пик памяти
+    _ = generate_ensemble(predictor, x_df, x_timestamp, y_timestamp, pred_len,
+                          n_paths=probe, chunk=probe, T=1.0, top_k=0, top_p=1.0, seed=0)
+    peak = torch.cuda.max_memory_allocated(dev)
+    torch.cuda.empty_cache()
+
+    # память на путь (с защитой от нуля), плюс базовый оверхед уже учтён в peak
+    per_path = max(peak / probe, 1)
+    free_gb = free_before / 1e9
+    budget_bytes = max((free_gb - reserve_gb) * 1e9, per_path * 2)
+    chunk = int(budget_bytes / per_path)
+    chunk = max(2, min(chunk, max_chunk))
+
+    print(f"[auto_chunk] свободно {free_gb:.1f}ГБ из {total/1e9:.1f}, "
+          f"~{per_path/1e6:.1f}МБ/путь, запас {reserve_gb}ГБ -> chunk={chunk}", flush=True)
+    return chunk

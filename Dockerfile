@@ -19,6 +19,8 @@ RUN git clone --depth 1 https://github.com/shiyu-coder/Kronos.git /app/kronos_mo
 # наш стенд
 COPY kronos_lab /app/kronos_lab
 COPY download_data.py /app/download_data.py
+COPY gpu_info.py /app/gpu_info.py
+COPY merge_results.py /app/merge_results.py
 COPY run_backtest.sh /app/run_backtest.sh
 RUN chmod +x /app/run_backtest.sh
 
