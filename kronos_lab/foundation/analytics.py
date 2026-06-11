@@ -113,19 +113,3 @@ if __name__ == "__main__":
     assert sf["CVaR_5%_(loss%)"] > st["CVaR_5%_(loss%)"], "fat-tail должен иметь больший CVaR"
     assert sf["tail_asymmetry_(L-R)%"] > st["tail_asymmetry_(L-R)%"], "fat-tail левее асимметричнее"
     print("\nматематика формы распределения: проверки пройдены")
-
-
-def context_features(df) -> dict:
-    """
-    Признаки КОНТЕКСТА в момент прогноза (из входных свечей).
-    Нужны для условных/режимных стратегий: z-score драйвит контртренд модели.
-    df: контекст с колонками open/high/low/close.
-    """
-    close = df["close"].to_numpy(dtype=float)
-    rets = np.diff(np.log(close))
-    return {
-        "ctx_realized_vol": round(float(np.std(rets) * 100), 5),        # часовая реализованная вола, %
-        "ctx_trend": round(float((close[-1] / close[0] - 1) * 100), 4),  # ход контекста за окно, %
-        "ctx_zscore": round(float((close[-1] - close.mean()) / (close.std() + 1e-9)), 4),  # где last в окне
-        "ctx_range_pct": round(float((df["high"].max() - df["low"].min()) / close[-1] * 100), 4),
-    }
