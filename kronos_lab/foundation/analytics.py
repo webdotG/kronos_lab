@@ -89,6 +89,17 @@ def summarize(ens: ForecastEnsemble) -> dict:
         "meta": ens.meta,
     }
 
+def context_features(df) -> dict:
+    """Признаки контекста в момент прогноза (для условных/режимных стратегий)."""
+    import numpy as np
+    close = df["close"].to_numpy(dtype=float)
+    rets = np.diff(np.log(close))
+    return {
+        "ctx_realized_vol": round(float(np.std(rets) * 100), 5),
+        "ctx_trend": round(float((close[-1] / close[0] - 1) * 100), 4),
+        "ctx_zscore": round(float((close[-1] - close.mean()) / (close.std() + 1e-9)), 4),
+        "ctx_range_pct": round(float((df["high"].max() - df["low"].min()) / close[-1] * 100), 4),
+    }
 
 if __name__ == "__main__":
     # тест математики на синтетике с ИЗВЕСТНОЙ формой
